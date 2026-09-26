@@ -32,28 +32,38 @@ button:disabled{opacity:.6;cursor:wait}</style></head><body>
 </form>
 <script>
 (()=>{
-const S="9Vff7OwkSRP0J9aqUNwRJA==",I="TXNzmsRbAnlOvqOU",IT=200000;
+const S="fY3C8w4qfjHNP6x9wkf6iQ==",I="XsSXJ42OPVEQVk8w",IT=200000,N=4,V="20260925b";
 const u=s=>Uint8Array.from(atob(s),c=>c.charCodeAt(0)), $=id=>document.getElementById(id);
-let dataP=null;
-function load(){ if(dataP) return dataP;
- dataP=(async()=>{const r=await fetch("data.bin?v=20260925",{cache:"no-cache"}); if(!r.ok) throw new Error("net");
-  const tot=+r.headers.get("content-length")||0, rd=r.body.getReader(), parts=[]; let got=0;
-  for(;;){const {done,value}=await rd.read(); if(done)break; parts.push(value); got+=value.length; if(tot){$("pg").hidden=false;$("pg").value=Math.min(100,got/tot*100)}}
-  const out=new Uint8Array(got); let o=0; for(const p of parts){out.set(p,o);o+=p.length} return out;})();
- dataP.catch(()=>{dataP=null}); return dataP;}
-load();
+let dataP=null, done=0;
+async function part(k){
+ for(let a=0;a<4;a++){
+  const ac=new AbortController(), to=setTimeout(()=>ac.abort(),25000);
+  try{const r=await fetch(`d/p${k}.txt?v=${V}&r=${a}`,{signal:ac.signal,cache:a?"reload":"default"}); if(!r.ok) throw 0; const s=await r.text(); clearTimeout(to);
+   done++; $("pg").hidden=false; $("pg").value=done/N*100; $("st").textContent=`Loading data… ${done}/${N}`; return s;}
+  catch(e){clearTimeout(to); await new Promise(r=>setTimeout(r,800*(a+1)))}
+ } throw new Error("net");
+}
+function load(){ if(!dataP){done=0; dataP=Promise.all([...Array(N).keys()].map(part)).then(a=>u(a.join(""))); dataP.catch(()=>{dataP=null});} return dataP; }
+load().catch(()=>{});
+async function gunzip(buf){
+ if(!("DecompressionStream" in window)) throw new Error("old");
+ const st=new Blob([buf]).stream().pipeThrough(new DecompressionStream("gzip"));
+ return await new Response(st).text();
+}
 async function open_(pw){
  $("st").textContent="Loading data…"; const ct=await load();
  $("st").textContent="Unlocking…";
  const k0=await crypto.subtle.importKey("raw",new TextEncoder().encode(pw),"PBKDF2",false,["deriveKey"]);
  const k=await crypto.subtle.deriveKey({name:"PBKDF2",salt:u(S),iterations:IT,hash:"SHA-256"},k0,{name:"AES-GCM",length:256},false,["decrypt"]);
  let pt; try{pt=await crypto.subtle.decrypt({name:"AES-GCM",iv:u(I)},k,ct)}catch(_){throw new Error("pw")}
- const html=new TextDecoder().decode(pt); document.open(); document.write(html); document.close();
+ const html=await gunzip(pt); document.open(); document.write(html); document.close();
 }
 async function go(pw,remember){const btn=$("go"); btn.disabled=true; btn.textContent="Opening…"; $("err").textContent="";
  try{await open_(pw); if(remember){try{localStorage.setItem("bp_pw",pw)}catch(_){}}}
- catch(e){$("st").textContent=""; $("pg").hidden=true; $("err").textContent=e.message==="pw"?"That password didn't work.":"Couldn't load the data — check your connection and try again."; btn.disabled=false; btn.textContent="Open"; try{localStorage.removeItem("bp_pw")}catch(_){}}}
+ catch(e){$("st").textContent=""; $("pg").hidden=true; btn.disabled=false; btn.textContent="Open";
+  $("err").textContent=e.message==="pw"?"That password didn't work.":e.message==="old"?"Please use an up-to-date Chrome, Edge, Safari or Firefox.":"Couldn't load the data — your network may be blocking it. Try again, or try on mobile data.";
+  if(e.message==="pw"){try{localStorage.removeItem("bp_pw")}catch(_){}}}}
 let busy=false; window.__go=()=>{window.__pending=0; const pw=$("pw").value; if(pw&&!busy){busy=true; go(pw,$("rem").checked).finally(()=>{busy=false})}}; if(window.__pending) window.__go();
-let saved=null; try{saved=localStorage.getItem("bp_pw")}catch(_){} if(saved) go(saved,false);
+let saved=null; try{saved=localStorage.getItem("bp_pw")}catch(_){} if(saved&&!busy){busy=true; go(saved,false).finally(()=>{busy=false})}
 })();
 </script></body></html>
